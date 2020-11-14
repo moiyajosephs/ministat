@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "queue.h"
 
@@ -536,8 +537,13 @@ main(int argc, char **argv)
 	int flag_s = 0;
 	int flag_n = 0;
 	int flag_q = 0;
+	int flag_v = 0;
 	int termwidth = 74;
 
+	
+
+	struct timespec RF_begin, RF_end;
+	clock_gettime(CLOCK_MONOTONIC, &RF_begin);
 	if (isatty(STDOUT_FILENO)) {
 		struct winsize wsz;
 
@@ -547,9 +553,13 @@ main(int argc, char **argv)
 			 wsz.ws_col > 0)
 			termwidth = wsz.ws_col - 2;
 	}
+	clock_gettime(CLOCK_MONOTONIC, &RF_end);
+	long RF_seconds = RF_end.tv_sec - RF_begin.tv_sec;
+    long RF_nanoseconds = RF_end.tv_nsec - RF_begin.tv_nsec;
+    double RF_elapsed = RF_seconds + RF_nanoseconds*1e-9;
 
 	ci = -1;
-	while ((c = getopt(argc, argv, "C:c:d:snqw:")) != -1)
+	while ((c = getopt(argc, argv, "C:c:d:snvqw:")) != -1)
 		switch (c) {
 		case 'C':
 			column = strtol(optarg, &p, 10);
@@ -589,6 +599,9 @@ main(int argc, char **argv)
 			if (termwidth < 0)
 				usage("Unable to move beyond left margin.");
 			break;
+		case 'v':
+			flag_v = 1;
+			break;
 		default:
 			usage("Unknown option");
 			break;
@@ -598,16 +611,27 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+
+	struct timespec RS_begin, RS_end;
+	//clock_gettime(CLOCK_MONOTONIC, &begin);
 	if (argc == 0) {
+		clock_gettime(CLOCK_MONOTONIC, &RS_begin);
 		ds[0] = ReadSet("-", column, delim);
+		clock_gettime(CLOCK_MONOTONIC, &RS_end);
 		nds = 1;
 	} else {
 		if (argc > (MAX_DS - 1))
 			usage("Too many datasets.");
 		nds = argc;
+		clock_gettime(CLOCK_MONOTONIC, &RS_begin);
 		for (i = 0; i < nds; i++)
 			ds[i] = ReadSet(argv[i], column, delim);
+		clock_gettime(CLOCK_MONOTONIC, &RS_end);
 	}
+	
+	long RS_seconds = RS_end.tv_sec - RS_begin.tv_sec;
+    long RS_nanoseconds = RS_end.tv_nsec - RS_begin.tv_nsec;
+    double RS_elapsed = RS_seconds + RS_nanoseconds*1e-9;
 
 	for (i = 0; i < nds; i++) 
 		printf("%c %s\n", symbol[i+1], ds[i]->name);
@@ -622,10 +646,22 @@ main(int argc, char **argv)
 	}
 	VitalsHead();
 	Vitals(ds[0], 1);
+
+	
 	for (i = 1; i < nds; i++) {
 		Vitals(ds[i], i + 1);
 		if (!flag_n)
 			Relative(ds[i], ds[0], ci);
 	}
+	
+
+	if (flag_v){
+		printf("Time spent using ReadSet function: %.9f seconds.\n", RS_elapsed);
+		printf("Time spent reading files: %.9f seconds. \n", RF_elapsed);
+	}
+
+   	
+
 	exit(0);
+	
 }
